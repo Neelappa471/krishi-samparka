@@ -1,0 +1,29 @@
+{
+  "name": "krishisetu",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "demo:accounts": "node scripts/createDemoAccounts.mjs",
+    "test:demo-accounts": "node --test scripts/createDemoAccounts.test.mjs",
+    "test:market-prices": "node --test src/utils/marketPriceResult.test.mjs",
+    "import:market-prices": "node scripts/importMarketPrices.js"
+  },
+  "dependencies": {
+    "@googlemaps/js-api-loader": "^2.1.3",
+    "@supabase/supabase-js": "^2.117.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "vite": "^8.3.0"
+  }
+}
