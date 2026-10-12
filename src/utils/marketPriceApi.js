@@ -3,9 +3,9 @@ import {
   MANDI_COMMODITY_ALIASES,
   normalizeReferenceKey,
 } from "../data/mandiReference";
-import { searchFallbackCropPrices } from "../data/fallbackCropPrices";
 import {
   commodityNamesMatch,
+  mapFallbackCropPriceRows,
   prioritizeMarketPriceResults,
 } from "./marketPriceResult";
 
@@ -489,16 +489,42 @@ async function searchSupabasePrices({
   };
 }
 
+// Enabled reference/demo rows live in their own table and are never written to
+// market_prices. A missing table or an RLS/query error is returned safely so
+// the page can keep rendering its empty state.
+async function searchSupabaseFallbackPrices({
+  commodity,
+  state = "",
+  district = "",
+  market = "",
+}) {
+  try {
+    const { data, error } = await supabase
+      .from("fallback_crop_prices")
+      .select("*")
+      .eq("enabled", true)
+      .limit(1000);
+
+    if (error) return { rows: [], error };
+    return {
+      rows: mapFallbackCropPriceRows(data, commodity, { state, district, market }),
+      error: null,
+    };
+  } catch (error) {
+    return { rows: [], error };
+  }
+}
+
 /**
  * Search mandi prices for the Market Prices page.
  *
  * source: "auto" (default) -> live Mandi Price API first, then stored
- *                              Supabase records, then local demo records.
+ *                              Supabase records, then enabled fallback_crop_prices.
  *         "live"           -> live API only
  *         "supabase"       -> stored table only (the original behaviour)
  *
  * Return shape stays { rows, error }. Extra keys:
- *   sourceType        "live-api" | "supabase" (origin of returned rows)
+ *   sourceType        "live-api" | "supabase" | "fallback-supabase"
  *   liveFallbackReason set when stored Supabase rows replace unavailable API data
  *
  * @param {{ commodity: string, state?: string, district?: string, market?: string, source?: string }} params
@@ -534,10 +560,23 @@ export async function searchMarketPrices({
   }
 
   const stored = await searchSupabasePrices({ commodity: term, state, district, market });
-  const demoRows = searchFallbackCropPrices(term, { state, district, market });
-  const demo = { rows: demoRows, error: null };
+  if (source === "supabase") {
+    return prioritizeMarketPriceResults({ live: null, stored });
+  }
+  if (stored.rows.length > 0) {
+    return {
+      ...prioritizeMarketPriceResults({ live, stored }),
+      liveFallbackReason,
+    };
+  }
+  const fallback = await searchSupabaseFallbackPrices({
+    commodity: term,
+    state,
+    district,
+    market,
+  });
   return {
-    ...prioritizeMarketPriceResults({ live, stored, demo }),
+    ...prioritizeMarketPriceResults({ live, stored, fallback }),
     liveFallbackReason,
   };
 }

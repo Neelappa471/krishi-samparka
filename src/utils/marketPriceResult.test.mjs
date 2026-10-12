@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { searchFallbackCropPrices, FALLBACK_CROP_PRICE_COUNT } from "../data/fallbackCropPrices.js";
 import {
   commodityNamesMatch,
+  mapFallbackCropPriceRows,
   prioritizeMarketPriceResults,
 } from "./marketPriceResult.js";
 
@@ -43,26 +43,52 @@ test("stored records are returned when the API has no matches or errors", () => 
   );
 });
 
-test("local demo prices are used after API failure when no stored match exists", () => {
-  const demoRows = searchFallbackCropPrices("  PINEAPPLE ", {
-    state: "Karnataka",
-    district: "Udupi",
-    market: "Udupi",
-  });
-  assert.equal(FALLBACK_CROP_PRICE_COUNT, 21);
-  assert.equal(demoRows.length, 1);
-  assert.equal(demoRows[0].commodity, "Pineapple");
-  assert.equal(demoRows[0].modal_price, 2200);
-  assert.equal(demoRows[0].sourceType, "demo");
+test("enabled Supabase fallback rows map into UI shape and follow API/stored results", () => {
+  const fallbackRows = mapFallbackCropPriceRows([
+    {
+      id: "fallback-1",
+      crop: "Coconut",
+      crop_kn: "ತೆಂಗಿನಕಾಯಿ",
+      aliases: ["tengina kayi"],
+      state: "Karnataka",
+      district: "Udupi",
+      market: "Udupi",
+      variety: "Local",
+      min_price: "1800",
+      max_price: "2400",
+      modal_price: "2100",
+      unit: "quintal",
+      enabled: true,
+    },
+    { crop: "Coconut", state: "Karnataka", district: "Udupi", market: "Udupi", modal_price: 2100, enabled: false },
+    { crop: "Coconut", state: "Karnataka", district: "Dakshina Kannada", market: "Mangaluru", modal_price: 2100, enabled: true },
+  ], "ತೆಂಗು", { state: "Karnataka", district: "Udupi", market: "Udupi" });
+  assert.equal(fallbackRows.length, 1);
+  assert.equal(fallbackRows[0].commodity, "Coconut");
+  assert.equal(fallbackRows[0].commodity_kn, "ತೆಂಗಿನಕಾಯಿ");
+  assert.equal(fallbackRows[0].modal_price, 2100);
+  assert.equal(fallbackRows[0].sourceType, "fallback-supabase");
 
   const result = prioritizeMarketPriceResults({
     live: { rows: [], error: new Error("API timeout") },
     stored: { rows: [], error: null },
-    demo: { rows: demoRows, error: null },
+    fallback: { rows: fallbackRows, error: null },
   });
-  assert.equal(result.sourceType, "demo");
+  assert.equal(result.sourceType, "fallback-supabase");
   assert.equal(result.error, null);
-  assert.deepEqual(result.rows, demoRows);
+  assert.deepEqual(result.rows, fallbackRows);
+});
+
+test("a matching stored fallback query error remains an ordinary result error", () => {
+  const error = new Error("fallback read denied");
+  assert.deepEqual(
+    prioritizeMarketPriceResults({
+      live: { rows: [], error: new Error("unavailable") },
+      stored: { rows: [], error: null },
+      fallback: { rows: [], error },
+    }),
+    { rows: [], error, sourceType: "fallback-supabase" }
+  );
 });
 
 test("empty results stay empty and preserve a stored-query error", () => {

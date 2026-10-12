@@ -25,8 +25,10 @@ dist-ssr
 .env
 .env.demo.local
 
-# These public local datasets are required for market-price/map demo fallbacks.
-!/src/data/fallbackCropPrices.js
+# Local market-price fallback values are now stored in Supabase.
+/src/data/fallbackCropPrices.js
+
+# Map demonstration data remains active application data.
 !/src/data/mapDemoOpportunities.js
 !/src/data/mapIllustrativeActivity.js
 
